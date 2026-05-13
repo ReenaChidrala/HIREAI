@@ -1,7 +1,9 @@
 import React from 'react'
-import { Text, View } from 'react-native'
+import { Dimensions, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native'
 import auth from '@react-native-firebase/auth';
+
+const{width,height} =Dimensions.get('window');
 
 export default function Profile() {
     const user =auth().currentUser;
@@ -34,7 +36,6 @@ export default function Profile() {
 const styles = StyleSheet.create({
     container:{
         flexDirection:'row',
-     
         alignItems: 'center',
     },
     imageMainConatiner:{

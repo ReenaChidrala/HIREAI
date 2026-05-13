@@ -6,7 +6,7 @@ import auth from '@react-native-firebase/auth';
 import { useNavigation } from "@react-navigation/native";
 import { KeyboardAvoidingView } from "react-native";
 import { ScrollView } from "react-native";
-
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 const { width, height } = Dimensions.get('window');
 
 export const LoginScreen = () => {
@@ -16,10 +16,25 @@ export const LoginScreen = () => {
     const [signup, Setsignup] = useState(false)
 
     const navigation = useNavigation<any>();
+    GoogleSignin.configure({
+        webClientId: '789836582938-mvscpvkosepl848utr57d257r0gqnkte.apps.googleusercontent.com', // from Google Cloud Console
+    });
 
+    const handleGoogle = async () => {
+        console.log('google direct login is ongoing')
+            await GoogleSignin.hasPlayServices();
+            const { data } = await GoogleSignin.signIn();
+            if (!data?.idToken) {
+                Alert.alert("Error", "Google sign in failed");
+                return; 3
+            }
+            const credential = auth.GoogleAuthProvider.credential(data?.idToken);
+            await auth().signInWithCredential(credential);
+            navigation.navigate('Dashboard');
+        }
 
     const handleAuth = async (): Promise<void> => {
-        console.log("Handling authentication");
+
         const cleanEmail = email.trim();
 
         if (!cleanEmail || !password) {
@@ -31,8 +46,6 @@ export const LoginScreen = () => {
             Alert.alert("Error", "Passwords do not match");
             return;
         }
-
-
 
         try {
             if (signup) {
@@ -82,74 +95,128 @@ export const LoginScreen = () => {
         }
     };
     return (
-
         <ImageBackground
             source={require("../../assets/bgscreen.png")}
             style={styles.bg}
-            resizeMode="stretch"
+            resizeMode="cover"
         >
-            <SafeAreaView
-                style={styles.safe}>
+            <SafeAreaView style={styles.safe}>
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === "ios" ? 'padding' : 'height'}
-                    style={styles.kav}>
+                    behavior={Platform.OS === "ios" ? "padding" : "height"}
+                    style={styles.kav}
+                >
                     <ScrollView
                         contentContainerStyle={styles.scroll}
                         keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false} //this hides the sidebar 
+                        showsVerticalScrollIndicator={false}
                     >
 
                         <View style={styles.glassContainer}>
-                                <Text style={styles.welcomeText}>
-                                    {signup ? "Let's Get\nStarted!" : "Hey, \nWelcome Back!"}
-                                </Text>
-                        <View>
-                                <TextInput style={styles.input}
-                                    placeholder="Email Id"
+
+                            <Text style={styles.welcomeText}>
+                                {signup ? "Let's Get\nStarted!" : "Hey, \nWelcome Back!"}
+                            </Text>
+                            <Text style={styles.subText}>
+                                {signup ? "Create your account" : "Sign in to continue your journey"}
+                            </Text>
+
+                            <View style={styles.fieldWrap}>
+                                <Text style={styles.fieldLabel}>Email</Text>
+
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter your email"
+                                    placeholderTextColor="rgba(255,255,255,0.3)"
                                     value={email}
                                     onChangeText={setEmail}
-
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
                                 />
+                            </View>
 
-                                <TextInput style={styles.inputPassword}
-                                    placeholder="Password"
+                            <View style={styles.fieldWrap}>
+                                <Text style={styles.fieldLabel}>Password</Text>
+
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter your Password"
+                                    placeholderTextColor="rgba(255,255,255,0.3)"
                                     value={password}
                                     onChangeText={setPassword}
                                     secureTextEntry
                                 />
-                                {signup && (
-                                    <TextInput style={styles.inputPassword}
-                                        placeholder="Confirm Password"
+                            </View>
+
+                            {signup && (
+                                <View style={styles.fieldWrap}>
+                                    <Text style={styles.fieldLabel}>
+                                        Confirm Password
+                                    </Text>
+
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Re-enter your Password"
+                                        placeholderTextColor="rgba(255,255,255,0.3)"
                                         value={confirmPassword}
                                         onChangeText={setConfirmPassword}
                                         secureTextEntry
-                                    />)}
-                                <Text style={{ color: "#007AFF", textAlign: "right", marginBottom: 30, marginTop: -10 }}>
-                                    Forget Password?
+                                    />
+                                </View>
+                            )}
+
+                            {!signup && (
+                                <TouchableOpacity style={styles.forgotWrap}>
+                                    <Text style={styles.forgotTxt}>Forgot Password?</Text>
+                                </TouchableOpacity>
+                            )}
+
+                            
+                            <TouchableOpacity
+                                style={styles.loginButton}
+                                onPress={handleAuth}
+                                activeOpacity={0.35}
+                            >
+                                <Text
+                                    style={styles.buttonBtnTxt}
+                                >
+                                    {signup ? "Sign Up" : "Login"}
+                                </Text>
+                            </TouchableOpacity>
+
+                            <View style={styles.divider}>
+                                <View style={styles.dividerLine} />
+                                <Text style={styles.dividerText}>or continue with</Text>
+                                <View style={styles.dividerLine} />
+                            </View>
+                            <View style={styles.socialRow}>
+                                <TouchableOpacity style={styles.socialBtn} onPress={handleGoogle}>
+                                    <Text style={styles.socialTxt}>G Google</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={styles.signupContainer}>
+                                <Text
+                                    style={styles.toggleTxt}
+                                >
+                                    {signup
+                                        ? "Already have an account?"
+                                        : "Don't have an account? "}
                                 </Text>
 
-
-                                <TouchableOpacity style={styles.loginButton} onPress={handleAuth}>
-                                    <Text style={{ color: "#fff", fontSize: 16, fontWeight: "bold", textAlign: "center" }}>{signup ? "Sign Up" : "Login"}</Text>
-                                </TouchableOpacity>
-
-                                <View style={styles.signupContainer}>
-                                    <Text style={{ color: "#fff", textAlign: "center", marginTop: 20 }}>
-                                        {signup ? "Already have an account?" : "Don't have an account?"}
+                                <TouchableOpacity
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    onPress={() => Setsignup(!signup)}
+                                >
+                                    <Text
+                                        style={styles.toggleLink}
+                                    >
+                                        {signup ? "Sign In" : "Sign Up"}
                                     </Text>
-
-                                    <TouchableOpacity style={{ marginTop: 20 }} onPress={() => Setsignup(!signup)}>
-                                        <Text style={{ color: "#007AFF", textAlign: "center" }} >
-                                            {signup ? " Sign In" : " Sign Up"}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
+                                </TouchableOpacity>
                             </View>
                         </View>
                     </ScrollView>
                 </KeyboardAvoidingView>
             </SafeAreaView>
-
         </ImageBackground>
     )
 }
@@ -162,7 +229,7 @@ const styles = StyleSheet.create({
     },
     safe: {
         flex: 1,
-        //  marginHorizontal: 20, justifyContent: "flex-start", marginTop: 50     this is my style 
+
     },
     kav: {
         flex: 1 //keyboard Avioding View  new term hai
@@ -176,20 +243,20 @@ const styles = StyleSheet.create({
 
     },
     welcomeText: {
-        fontSize: width * 0.18,
+        fontSize: width * 0.14,
         fontWeight: '800',
         marginBottom: height * 0.05,
         color: "#fff",
-        lineHeight: width * 0.20,
-        letterSpacing: -0.5,
+        lineHeight: width * 0.15,
+        letterSpacing: 1.5,
 
     },
-    // ContainerWT: {
-    //     flexDirection: "row",
-    //     justifyContent: "flex-start",
-    //     alignItems: "flex-start",
-
-    // },
+    subText: {
+        color: 'rgba(255,255,255,0.35)',
+        fontSize: width * 0.033,
+        marginTop: -height * 0.03,
+        marginBottom: height * 0.04,
+    },
     glassContainer: {//chatbot
         width: '100%',
         padding: width * 0.06,           // 6% of screen width
@@ -208,30 +275,87 @@ const styles = StyleSheet.create({
         elevation: 8,
 
     },
-    input: {
-        height: 40,
-        borderColor: 'gray',
-        borderWidth: 1,
-        marginBottom: 10,
-        paddingHorizontal: 10,
-        borderRadius: 20,
-        color: "#fff",
+    fieldWrap: {
+        marginBottom: height * 0.018,    // scales with screen height
+    },
+    fieldLabel: {
+        color: 'rgba(255,255,255,0.5)',
+        fontSize: width * 0.03,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+        marginBottom: 6,
+    },
+    forgotWrap: {
+        alignSelf: 'flex-end',
+        marginBottom: height * 0.025,
 
     },
-    inputPassword: {
-        height: 40,
-        borderColor: 'gray',
+    forgotTxt: {
+        color: '#007AFF',
+        fontSize: width * 0.033,
+    },
+    divider: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: height * 0.018,
+        gap: 8,
+    },
+    dividerLine: {
+        flex: 1,
+        height: 0.5,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+    },
+    dividerText: {
+        color: 'rgba(255,255,255,0.25)',
+        fontSize: width * 0.035,
+    },
+    socialRow:{
+        flexDirection:'row',
+        gap:10,
+        marginBottom: height * 0.018, 
+    },
+    socialBtn:{
+        flex: 1,
+        backgroundColor: 'rgba(255,255,255,0.06)',
         borderWidth: 1,
-        marginBottom: 20,
-        paddingHorizontal: 10,
-        borderRadius: 20,
+        borderColor: 'rgba(255, 255, 255, 0.12)',
+        borderRadius:12,
+        paddingVertical:height* 0.014,
+        alignItems:'center'
+    },
+    socialTxt:{
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: width * 0.033,
+    fontWeight: '500',
+    },
+    buttonBtnTxt: {
+        color: '#fff',
+        fontSize: width * 0.042,
+        fontWeight: '700',
+    },
+    input: {
+        height: height * 0.058,
+        borderColor: 'rgba(255,255,255,0.15)',
+        borderWidth: 1,
+        marginBottom: 10,
+        paddingHorizontal: width * 0.04,
+        borderRadius: 14,
         color: "#fff",
+        fontSize: width * 0.038,
+        backgroundColor: 'rgba(255,255,255,0.07)',
+
     },
     loginButton: {
-        backgroundColor: "#007AFF",
+        backgroundColor: '#007AFF',
         borderRadius: 50,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
+        paddingVertical: height * 0.018,
+        alignItems: 'center',
+        shadowColor: '#007AFF',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        elevation: 8,
 
     },
     signupContainer: {
@@ -239,8 +363,19 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "center",
         alignItems: "center",
+        flexWrap: 'wrap',
+        gap: 4,
 
-    }
+    },
+    toggleTxt: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: width * 0.04,
+    },
+    toggleLink: {
+        color: '#007AFF',
+        fontSize: width * 0.04,
+        fontWeight: '600',
+    },
 
 })
 
