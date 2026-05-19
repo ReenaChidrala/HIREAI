@@ -13,8 +13,10 @@ type ChatMsg = { role: string; parts: { text: string }[] };
 const GEMINI_KEY = 'AIzaSyAaAEeLz1uJ0qDurbbJDN9_mezrboOiD00';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
 
-const buildPrompt = (role: string, skills: string) =>
-    `You are a professional interviewer for a ${role} role at a top tech company.
+// 1. Updated Prompt builder to include experience and company
+const buildPrompt = (role: string, experience: string, company: string, skills: string) =>
+    `You are a professional interviewer interviewing a candidate for a ${role} role${company ? ` at ${company}` : ' at a top tech company'}.
+The candidate has ${experience} of experience.
 ${skills ? `The candidate has specified these skills: ${skills}. Focus your technical questions around them specifically.` : ''}
 STRICT RULES:
 - Ask exactly ONE question per turn. Never combine questions.
@@ -26,19 +28,25 @@ STRICT RULES:
 - Never say you are an AI.`;
 
 const PHASES = ['Intro', 'Technical', 'Problem', 'Behaviour', 'Wrap up'];
+// Experience options list
+const EXP_OPTIONS = ['Junior (0-2 yrs)', 'Mid-level (2-5 yrs)', 'Senior (5+ yrs)'];
 
 export default function InterviewScreen({ navigation }: { navigation: any }) {
 
     const [screen, setScreen] = useState<'select' | 'ready' | 'interview' | 'done'>('select');
     const [customRole, setCustomRole] = useState('');
     const [customSkills, setCustomSkills] = useState('');
+    
+    // 2. New State variables for Experience and Company
+    const [experience, setExperience] = useState('Mid-level (2-5 yrs)');
+    const [customCompany, setCustomCompany] = useState('');
+    
     const [messages, setMessages] = useState<UIMessage[]>([]);
     const [liveText, setLiveText] = useState('');
     const [textInput, setTextInput] = useState('');
     const [indicator, setIndicator] = useState<'ai' | 'mic' | 'thinking' | 'idle'>('idle');
     const [qNum, setQNum] = useState(0);
     const pulseAnim = useRef(new Animated.Value(1)).current;
-
 
     const history = useRef<ChatMsg[]>([]);
     const scrollRef = useRef<ScrollView | null>(null);
@@ -79,7 +87,6 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
             if (screenRef.current !== 'interview') return;
             busy.current = false;
             setIndicator('idle');
-            // setTimeout(() => startMic(), 400);
         };
         const onCancel = () => {
             if (ttsTimer.current) { clearTimeout(ttsTimer.current); ttsTimer.current = null; }
@@ -158,7 +165,6 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
             if (busy.current && screenRef.current === 'interview') {
                 busy.current = false;
                 setIndicator('idle');
-                // setTimeout(() => startMic(), 400);
             }
         }, ms);
         setTimeout(() => Tts.speak(text), 250);
@@ -189,6 +195,7 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
     const beginInterview = async () => {
         const role = customRole.trim();
         const skills = customSkills.trim();
+        const comp = customCompany.trim();
         if (!role) { Alert.alert('Enter your role', 'Please type a job role to continue.'); return; }
         const ok = await askMicPermission();
         if (!ok) { Alert.alert('Need mic permission'); return; }
@@ -201,9 +208,10 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
         listening.current = false;
         setIndicator('thinking');
 
+        // 3. Updated initial user context payload
         history.current = [{
             role: 'user',
-            parts: [{ text: buildPrompt(role, skills) + '\n\nStart the interview now.' }],
+            parts: [{ text: buildPrompt(role, experience, comp, skills) + '\n\nStart the interview now.' }],
         }];
 
         try {
@@ -256,7 +264,7 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
 
     const resetAll = () => {
         setScreen('select'); setMessages([]); setQNum(0);
-        setCustomRole(''); setCustomSkills('');
+        setCustomRole(''); setCustomSkills(''); setCustomCompany(''); setExperience('Mid-level (2-5 yrs)');
         history.current = []; busy.current = false; listening.current = false;
     };
 
@@ -265,7 +273,7 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
         <SafeAreaView style={s.root}>
             <View style={s.ph}>
                 <Text style={s.h1}>Prepare Your Interview</Text>
-                <Text style={s.sub}>Tell the AI your role and skills</Text>
+                <Text style={s.sub}>Tell the AI your target parameters</Text>
             </View>
 
             <ScrollView
@@ -273,8 +281,9 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
+                {/* Field 1: Job Role */}
                 <View>
-                    <Text style={s.fieldLabel}>🎯  Job Role</Text>
+                    <Text style={s.fieldLabel}>🎯  Job Role *</Text>
                     <Text style={s.fieldHint}>e.g. Frontend Developer, Data Scientist, Product Manager</Text>
                     <View style={[s.fieldBox, customRole.length > 0 && s.fieldBoxActive]}>
                         <TextInput
@@ -293,6 +302,48 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                     </View>
                 </View>
 
+                {/* Field 2: Experience Selector */}
+                <View>
+                    <Text style={s.fieldLabel}>📈  Experience Level</Text>
+                    <Text style={s.fieldHint}>Helps tailor the difficulty of technical concepts</Text>
+                    <View style={s.expRow}>
+                        {EXP_OPTIONS.map((opt) => {
+                            const active = experience === opt;
+                            return (
+                                <TouchableOpacity 
+                                    key={opt} 
+                                    style={[s.expChip, active && s.expChipActive]}
+                                    onPress={() => setExperience(opt)}
+                                >
+                                    <Text style={[s.expChipTxt, active && s.expChipTxtActive]}>{opt.split(' ')[0]}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+
+                {/* Field 3: Target Company (Optional) */}
+                <View>
+                    <Text style={s.fieldLabel}>🏢  Target Company (Optional)</Text>
+                    <Text style={s.fieldHint}>e.g. Google, Stripe, or a generic early stage startup</Text>
+                    <View style={[s.fieldBox, customCompany.length > 0 && s.fieldBoxActive]}>
+                        <TextInput
+                            style={s.fieldInput}
+                            placeholder="Type your dream company..."
+                            placeholderTextColor="#3D4060"
+                            value={customCompany}
+                            onChangeText={setCustomCompany}
+                            returnKeyType="next"
+                        />
+                        {customCompany.length > 0 && (
+                            <TouchableOpacity onPress={() => setCustomCompany('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                <Text style={s.clearBtn}>✕</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                </View>
+
+                {/* Field 4: Your Skills */}
                 <View>
                     <Text style={s.fieldLabel}>⚡  Your Skills</Text>
                     <Text style={s.fieldHint}>e.g. React, Node.js, System Design, Python, AWS</Text>
@@ -309,7 +360,8 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                     </View>
                 </View>
 
-                {(customRole.trim() || customSkills.trim()) && (
+                {/* Dynamic AI Preview Card */}
+                {(customRole.trim() || customSkills.trim() || customCompany.trim()) && (
                     <View style={s.previewCard}>
                         <Text style={s.previewTitle}>📋  AI Interview Setup</Text>
                         {customRole.trim() ? (
@@ -318,15 +370,22 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                                 <Text style={s.previewVal}>{customRole.trim()}</Text>
                             </View>
                         ) : null}
+                        <View style={s.previewRow}>
+                            <Text style={s.previewKey}>Level</Text>
+                            <Text style={s.previewVal}>{experience}</Text>
+                        </View>
+                        {customCompany.trim() ? (
+                            <View style={s.previewRow}>
+                                <Text style={s.previewKey}>Target</Text>
+                                <Text style={s.previewVal}>{customCompany.trim()}</Text>
+                            </View>
+                        ) : null}
                         {customSkills.trim() ? (
                             <View style={s.previewRow}>
                                 <Text style={s.previewKey}>Skills</Text>
                                 <Text style={s.previewVal}>{customSkills.trim()}</Text>
                             </View>
                         ) : null}
-                        {!customSkills.trim() && (
-                            <Text style={s.previewNote}>💡 Add skills for more targeted questions</Text>
-                        )}
                     </View>
                 )}
             </ScrollView>
@@ -349,7 +408,11 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
             <View style={s.center}>
                 <Text style={{ fontSize: 62, marginBottom: 14 }}>🎯</Text>
                 <Text style={s.h1}>{customRole.trim()}</Text>
+                <Text style={[s.sub, {color: '#FF4D00', fontWeight: '600'}]}>
+                    {experience} {customCompany.trim() ? `• Interviewing at ${customCompany.trim()}` : ''}
+                </Text>
                 {customSkills.trim() ? <Text style={s.sub} numberOfLines={2}>{customSkills.trim()}</Text> : null}
+                
                 <View style={s.infoBox}>
                     {[
                         '🤖  AI speaks every question aloud',
@@ -362,7 +425,7 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                     <Text style={s.btnTxt}>🎙  Begin Interview</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.ghost} onPress={() => setScreen('select')}>
-                    <Text style={s.ghostTxt}>← Change Role</Text>
+                    <Text style={s.ghostTxt}>← Change Setup</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
@@ -441,7 +504,6 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
             </ScrollView>
 
             <View style={s.inputBar}>
-                {/* Live transcript shows above input when mic is on */}
                 {!!liveText && (
                     <View style={s.liveBox}>
                         <Animated.View style={[s.dotGreen, { transform: [{ scale: pulseAnim }], marginRight: 8 }]} />
@@ -450,8 +512,6 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                 )}
 
                 <View style={s.inputRow}>
-
-                    {/* Text input */}
                     <TextInput
                         style={s.answerInput}
                         placeholder={indicator === 'ai' ? 'AI is speaking...' : 'Type your answer...'}
@@ -464,7 +524,6 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                         returnKeyType="send"
                     />
 
-                    {/* Send text button — shows when user has typed something */}
                     {textInput.trim().length > 0 && (
                         <TouchableOpacity
                             style={s.sendBtn}
@@ -478,17 +537,14 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                         </TouchableOpacity>
                     )}
 
-                    {/* Mic button — shows when input is empty */}
                     {textInput.trim().length === 0 && (
                         <TouchableOpacity
                             style={[s.micBtn, indicator === 'mic' && s.micBtnActive, indicator === 'ai' && s.micBtnDisabled]}
                             onPress={() => {
-                                if (indicator === 'ai') return; // AI is speaking, ignore
+                                if (indicator === 'ai') return;
                                 if (indicator === 'mic') {
-                                    // Stop mic
                                     stopMic();
                                 } else {
-                                    // Start mic
                                     startMic();
                                 }
                             }}
@@ -499,10 +555,8 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                             </Text>
                         </TouchableOpacity>
                     )}
-
                 </View>
 
-                {/* Status text below input */}
                 <Text style={s.inputStatus}>
                     {indicator === 'ai' && '🔊 AI is speaking...'}
                     {indicator === 'mic' && '🔴 Recording — tap ⏹ to stop'}
@@ -563,14 +617,20 @@ const s = StyleSheet.create({
     fieldInput: { flex: 1, color: '#fff', fontSize: 14 },
     clearBtn: { color: '#5A5F7A', fontSize: 18, lineHeight: 22, paddingLeft: 8 },
 
+    // Styles for experience row chips
+    expRow: { flexDirection: 'row', gap: 8, marginTop: 2 },
+    expChip: { flex: 1, paddingVertical: 12, backgroundColor: '#13151f', borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+    expChipActive: { borderColor: '#FF4D00', backgroundColor: 'rgba(255,77,0,0.08)' },
+    expChipTxt: { color: '#5A5F7A', fontSize: 13, fontWeight: '600' },
+    expChipTxtActive: { color: '#FF4D00' },
+
     previewCard: { backgroundColor: '#13151f', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: 'rgba(255,77,0,0.2)', gap: 10 },
     previewTitle: { color: '#FF4D00', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 },
     previewRow: { flexDirection: 'row', gap: 8 },
-    previewKey: { color: '#5A5F7A', fontSize: 13, fontWeight: '600', width: 44 },
+    previewKey: { color: '#5A5F7A', fontSize: 13, fontWeight: '600', width: 55 },
     previewVal: { color: '#fff', fontSize: 13, flex: 1, lineHeight: 20 },
-    previewNote: { color: '#3D4060', fontSize: 12, fontStyle: 'italic' },
 
-    btn: { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#FF4D00', borderRadius: 50, paddingVertical: 15, alignItems: 'center', width: '90%', shadowColor: '#FF4D00', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 10 },
+    btn: { alignSelf: 'center', marginBottom: 12, backgroundColor: '#FF4D00', borderRadius: 50, paddingVertical: 15, alignItems: 'center', width: '90%', shadowColor: '#FF4D00', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 10 },
     btnOff: { backgroundColor: '#1e2030', shadowOpacity: 0, elevation: 0 },
     btnTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
     ghost: { padding: 14, alignItems: 'center' },
@@ -615,41 +675,31 @@ const s = StyleSheet.create({
     thinkDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#FF4D00' },
     thinkTxt: { color: '#5A5F7A', fontSize: 12, marginLeft: 4 },
 
-    tipCard: { flexDirection: 'row', backgroundColor: '#0d1a14', borderWidth: 1, borderColor: 'rgba(0,224,150,0.2)', borderRadius: 14, padding: 12, marginBottom: 8, gap: 10, alignItems: 'center' },
-    tipIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(0,224,150,0.1)', alignItems: 'center', justifyContent: 'center' },
-    tipLabel: { fontSize: 10, fontWeight: '700', color: '#00E096', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
-    tipText: { fontSize: 12, color: '#8A8FA8', lineHeight: 16 },
-
     liveBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0d1a14', borderWidth: 1, borderColor: 'rgba(0,224,150,0.2)', borderRadius: 14, padding: 12, marginBottom: 8 },
     liveTxt: { color: '#00E096', fontSize: 13, fontStyle: 'italic', flex: 1 },
-
-    vbar: { backgroundColor: '#0d0f1a', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingVertical: 18, paddingHorizontal: 18, minHeight: 66, justifyContent: 'center' },
-    vrow: { flexDirection: 'row', alignItems: 'center' },
-    vbarTxt: { color: '#8A8FA8', fontSize: 13, flex: 1 },
-    dotOrange: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#FF4D00' },
-    dotGreen: { width: 13, height: 13, borderRadius: 7, backgroundColor: '#00E096' },
-    dotGray: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#3D4060' },
 
     statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, width: '100%', marginVertical: 22 },
     statCard: { flex: 1, minWidth: '44%', backgroundColor: '#13151f', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
     statN: { fontSize: 26, fontWeight: '800', color: '#FF4D00' },
     statL: { fontSize: 11, color: '#8A8FA8', marginTop: 4, textAlign: 'center' },
 
+    inputBar:       { backgroundColor: '#0d0f1a', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 10 },
+    inputRow:       { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+    answerInput:    { flex: 1, backgroundColor: '#13151f', borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 14, paddingHorizontal: 16, paddingVertical: 10, maxHeight: 100, lineHeight: 20 },
+    inputStatus:    { color: '#3D4060', fontSize: 11, textAlign: 'center', marginTop: 6, height: 16 },
 
+    sendBtn:        { width: 42, height: 42, borderRadius: 21, backgroundColor: '#FF4D00', alignItems: 'center', justifyContent: 'center', shadowColor: '#FF4D00', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
+    sendIcon:       { color: '#fff', fontSize: 16 },
 
-    // WhatsApp-style input bar
-inputBar:       { backgroundColor: '#0d0f1a', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 10 },
-inputRow:       { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-answerInput:    { flex: 1, backgroundColor: '#13151f', borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 14, paddingHorizontal: 16, paddingVertical: 10, maxHeight: 100, lineHeight: 20 },
-inputStatus:    { color: '#3D4060', fontSize: 11, textAlign: 'center', marginTop: 6, height: 16 },
-
-// Send button (appears when typing)
-sendBtn:        { width: 42, height: 42, borderRadius: 21, backgroundColor: '#FF4D00', alignItems: 'center', justifyContent: 'center', shadowColor: '#FF4D00', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
-sendIcon:       { color: '#fff', fontSize: 16 },
-
-// Mic button
-micBtn:         { width: 42, height: 42, borderRadius: 21, backgroundColor: '#13151f', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-micBtnActive:   { backgroundColor: 'rgba(255,59,92,0.15)', borderColor: '#FF3B5C' },
-micBtnDisabled: { opacity: 0.4 },
-micIcon:        { fontSize: 18 },
+    micBtn:         { width: 42, height: 42, borderRadius: 21, backgroundColor: '#13151f', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+    micBtnActive:   { backgroundColor: 'rgba(255,59,92,0.15)', borderColor: '#FF3B5C' },
+    micBtnDisabled: { opacity: 0.4 },
+    micIcon:        { fontSize: 18 },
+    // The exact missing item causing your error:
+    dotGreen: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#00E096',
+    },
 });
