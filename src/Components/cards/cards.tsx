@@ -1,6 +1,8 @@
 import React from 'react'
-import { StyleSheet, View } from 'react-native'
+import { Dimensions, StyleSheet, View } from 'react-native'
 import { Text } from 'react-native'
+
+const { width, height } = Dimensions.get('window');
 
 export default function Cards() {
 
@@ -8,40 +10,42 @@ export default function Cards() {
         {
             id: 1,
             value: 12,
-            title: "interview completed",
-            img: ""
-        }, {
+            title: "interview\nCompleted",
+            icon: '✅',
+        },
+        {
             id: 2,
             value: '85%',
-            title: "average  scrore",
-            img: ""
+            title: "average\nScrore",
+            icon: '📈'
+        },
+        {
+            id: 3,
+            value: '85%',
+            title: "average\nScrore",
+            icon: '📈'
         }
     ]
 
     return (
-
         <>
-            <View style={styles.cardmainContainer}>
+            <View style={styles.row}>
                 {
-                    data.map((data) => (
-                        <View style={styles.cardmainContainer}>
-                            <View style={styles.cardContainer} key={data.id}>
-                                <View style={styles.imagemainconainer}>
-                                    <View style={styles.imagecontainer}>
+                    data.map((item) => (
+                        <View style={styles.card} key={item.id}>
+                            <View style={[styles.iconBox]}>
+                                <Text style={styles.icon}>{item.icon}</Text>
+                            </View>
+                            <View>
+                                <Text style={styles.value}>
+                                    {item.value}
+                                </Text>
+                                <Text style={styles.title}>
+                                    {item.title}
+                                </Text>
 
-                                    </View>
-                                </View>
-                                <View style={styles.textContainer}>
-                                    <Text style={styles.textvalue}>
-                                        {data.value}
-                                    </Text>
-                                    <Text style={styles.texttitle}>
-                                        {data.title}
-                                    </Text>
-                                </View>
                             </View>
                         </View>
-
                     )
                     )}
             </View>
@@ -49,42 +53,42 @@ export default function Cards() {
     )
 }
 const styles = StyleSheet.create({
-    cardmainContainer: {
+    row: {
         flexDirection: 'row',
-        gap: 10,
+        gap: width * 0.02,
+        height: height * 0.10,
     },
-    imagemainconainer: {
-        width: 50,
-        height: 50,
-        borderWidth: 1,
-
-    }
-    , imagecontainer: {
-        width: '100%',
-        height: '100%',
-        backgroundColor: 'gray',
-    },
-    textContainer: {
-        flexDirection: 'column',
-
-    },
-    cardContainer: {
+    card: {
+        flex: 1,
         flexDirection: 'row',
-        width: 150,
-        borderWidth: 1,
-        padding: 10,
-        borderRadius: 10,
-        gap: 10,
         alignItems: 'center',
+        gap: width * 0.006,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 14,
+        padding: width * 0.03,
+        
     },
-    textvalue: {
-        fontSize: 27,
+    iconBox: {
+        width: width * 0.09,
+        height: width * 0.09,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    icon: {
+        fontSize: width * 0.050,
+    },
+    value: {
+        fontSize: width * 0.052,
         fontWeight: 'bold',
-        color:'white'
+        color: '#fff'
     },
-    texttitle: {
-        fontSize: 14,
-        width: '80%',
-        color:'gray'
+    title: {
+        fontSize: width * 0.028,
+        color: 'rgba(255,255,255,0.4)',
+        
     }
 })

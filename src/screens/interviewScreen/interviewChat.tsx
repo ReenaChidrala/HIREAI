@@ -1,34 +1,78 @@
+import { useNavigation } from '@react-navigation/native';
 import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet,
     SafeAreaView, Alert, Platform, PermissionsAndroid,
     ActivityIndicator, ScrollView, NativeModules, NativeEventEmitter,
-    Animated, TextInput,
+    Animated, TextInput, Dimensions,
 } from 'react-native';
 import Tts from 'react-native-tts';
 
 type UIMessage = { role: 'user' | 'ai'; text: string; id: number };
 type ChatMsg = { role: string; parts: { text: string }[] };
 
-const GEMINI_KEY = 'AIzaSyAaAEeLz1uJ0qDurbbJDN9_mezrboOiD00';
+const { width, height } = Dimensions.get('window');
+
+const GEMINI_KEY = 'AIzaSyCGG1hBildfP4yvzYW5q2KRIlwcubpF2Vc';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
 
+// const buildPrompt = (role: string, skills: string) =>
+//     `You are Sarah, a friendly and experienced technical interviewer at a top tech company like Google or Microsoft.
+// You have 10 years of experience hiring ${role} engineers.
+// ${skills ? `The candidate listed these skills: ${skills}. Weave them naturally into your questions.` : ''}
+
+// YOUR PERSONALITY:
+// - Warm, encouraging, and professional — like a real human interviewer
+// - Use natural conversational language — contractions like "you've", "let's", "I'd"
+// - Occasionally say things like "Great!", "Interesting!", "I like that approach"
+// - React to answers naturally — don't just jump to next question coldly
+
+// STRICT RULES:
+// - Ask exactly ONE question per turn. Never combine questions.
+// - First message MUST be exactly: "Hi there! I'm Sarah, and I'll be your interviewer today. Really glad you could make it. Before we dive in, could you tell me a little bit about yourself and what drew you to the ${role} role?"
+// - After each answer: give ONE short natural reaction sentence, then ask ONE follow-up question
+// - Cover these areas naturally: introduction, technical skills, problem solving, behavioural, situational
+// - After question 9 say: "It's been a real pleasure talking with you today. That wraps up our interview — you did great! We'll be in touch soon. Best of luck!"
+// - Plain text ONLY — no asterisks, bullets, markdown, or formatting
+// - Never reveal you are an AI or a language model
+// - Keep sentences short and natural — how a real person speaks`; `You are a professional interviewer for a ${role} role at a top tech company.
+// ${skills ? `The candidate has specified these skills: ${skills}. Focus your technical questions around them specifically.` : ''}
+// STRICT RULES:
+// - Ask exactly ONE question per turn. Never combine questions.
+// - First message: "Hello! I am your interviewer. Let's begin. Please introduce yourself briefly."
+// - After each answer: one sentence feedback + one new question.
+// - Cover: intro, technical, problem-solving, behavioural, situational.
+// - After question 9 say: "Thank you so much for your time. This concludes our interview. Best of luck!"
+// - Speak naturally. Short sentences. Plain text ONLY — no asterisks, bullets, or markdown.
+// - Never say you are an AI.`;
+
+
 const buildPrompt = (role: string, skills: string) =>
-    `You are a professional interviewer for a ${role} role at a top tech company.
-${skills ? `The candidate has specified these skills: ${skills}. Focus your technical questions around them specifically.` : ''}
+    `You are Sarah, a friendly and experienced technical interviewer at a top tech company like Google or Microsoft.
+You have 10 years of experience hiring ${role} engineers.
+${skills ? `The candidate listed these skills: ${skills}. Weave them naturally into your questions.` : ''}
+
+YOUR PERSONALITY:
+- Warm, encouraging, and professional like a real human interviewer
+- Use natural conversational language with contractions like you've, let's, I'd
+- Occasionally say things like Great, Interesting, I like that approach
+- React to answers naturally, don't just jump to next question coldly
+
 STRICT RULES:
 - Ask exactly ONE question per turn. Never combine questions.
-- First message: "Hello! I am your interviewer. Let's begin. Please introduce yourself briefly."
-- After each answer: one sentence feedback + one new question.
-- Cover: intro, technical, problem-solving, behavioural, situational.
-- After question 9 say: "Thank you so much for your time. This concludes our interview. Best of luck!"
-- Speak naturally. Short sentences. Plain text ONLY — no asterisks, bullets, or markdown.
-- Never say you are an AI.`;
+- First message MUST be: Hi there! I am Sarah and I will be your interviewer today. Really glad you could make it. Before we dive in could you tell me a little bit about yourself and what drew you to the ${role} role?
+- After each answer give ONE short natural reaction sentence then ask ONE follow-up question
+- Cover these areas naturally: introduction, technical skills, problem solving, behavioural, situational
+- After question 9 say: It has been a real pleasure talking with you today. That wraps up our interview, you did great! We will be in touch soon. Best of luck!
+- Plain text ONLY, no asterisks, bullets, markdown, or formatting
+- Never reveal you are an AI or a language model
+- Keep sentences short and natural like how a real person speaks`;
 
 const PHASES = ['Intro', 'Technical', 'Problem', 'Behaviour', 'Wrap up'];
 
-export default function InterviewScreen({ navigation }: { navigation: any }) {
+export default function InterviewScreen() {
 
+    const navigation = useNavigation<any>();
     const [screen, setScreen] = useState<'select' | 'ready' | 'interview' | 'done'>('select');
     const [customRole, setCustomRole] = useState('');
     const [customSkills, setCustomSkills] = useState('');
@@ -39,7 +83,6 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
     const [qNum, setQNum] = useState(0);
     const pulseAnim = useRef(new Animated.Value(1)).current;
 
-
     const history = useRef<ChatMsg[]>([]);
     const scrollRef = useRef<ScrollView | null>(null);
     const busy = useRef(false);
@@ -48,6 +91,7 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
     const ttsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const { SpeechModule } = NativeModules;
+
     useEffect(() => { screenRef.current = screen; }, [screen]);
 
     useEffect(() => {
@@ -69,8 +113,10 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
             try { await Tts.getInitStatus(); }
             catch (e: any) { if (e.code === 'no_engine') Tts.requestInstallEngine(); }
             Tts.setDefaultLanguage('en-US');
-            Tts.setDefaultRate(0.52);
-            Tts.setDefaultPitch(1.05);
+            Tts.setDefaultRate(0.42);
+            Tts.setDefaultPitch(1.0);
+            await Tts.setDucking(true);
+
         };
         initTts();
 
@@ -79,7 +125,6 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
             if (screenRef.current !== 'interview') return;
             busy.current = false;
             setIndicator('idle');
-            // setTimeout(() => startMic(), 400);
         };
         const onCancel = () => {
             if (ttsTimer.current) { clearTimeout(ttsTimer.current); ttsTimer.current = null; }
@@ -87,16 +132,14 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
             setIndicator('idle');
         };
 
-        Tts.addEventListener('tts-finish', onFinish);
-        Tts.addEventListener('tts-cancel', onCancel);
-        Tts.addEventListener('tts-error', onCancel);
+        // ✅ subscription pattern — fixes removeEventListener crash
+        const finishSub = Tts.addEventListener('tts-finish', onFinish);
+        const cancelSub = Tts.addEventListener('tts-cancel', onCancel);
+        const errorSub = Tts.addEventListener('tts-error', onCancel);
 
         return () => {
             Tts.stop();
             stopMic();
-            Tts.removeEventListener('tts-finish', onFinish as () => void);
-            Tts.removeEventListener('tts-cancel', onCancel as () => void);
-            Tts.removeEventListener('tts-error', onCancel as () => void);
         };
     }, []);
 
@@ -148,20 +191,42 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
     };
 
     const speak = (text: string) => {
-        stopMic();
+        if (SpeechModule && listening.current) {
+            try { SpeechModule.stopListening(); } catch (_) { }
+            listening.current = false;
+        }
         busy.current = true;
         setIndicator('ai');
-        Tts.stop();
-        const ms = Math.min(Math.max(text.length * 60, 3000), 20000);
+
+        // chunk by 250 chars max at word boundaries
+        const chunks: string[] = [];
+        let remaining = text.trim();
+        while (remaining.length > 0) {
+            if (remaining.length <= 250) {
+                chunks.push(remaining);
+                break;
+            }
+            let cutAt = remaining.lastIndexOf(' ', 250);
+            if (cutAt === -1) cutAt = 250;
+            chunks.push(remaining.substring(0, cutAt).trim());
+            remaining = remaining.substring(cutAt).trim();
+        }
+
+        // speak each chunk with delay
+        chunks.forEach((chunk, index) => {
+            setTimeout(() => {
+                if (busy.current) Tts.speak(chunk);
+            }, index * 300);
+        });
+
+        const ms = Math.min(Math.max(text.length * 120, 10000), 60000);
         if (ttsTimer.current) clearTimeout(ttsTimer.current);
         ttsTimer.current = setTimeout(() => {
             if (busy.current && screenRef.current === 'interview') {
                 busy.current = false;
                 setIndicator('idle');
-                // setTimeout(() => startMic(), 400);
             }
         }, ms);
-        setTimeout(() => Tts.speak(text), 250);
     };
 
     const startMic = () => {
@@ -177,7 +242,7 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
         if (SpeechModule && listening.current) {
             try { SpeechModule.stopListening(); } catch (_) { }
         }
-        listening.current = false;
+        listening.current = false
         setIndicator('idle');
     };
 
@@ -201,6 +266,12 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
         listening.current = false;
         setIndicator('thinking');
 
+        // ✅ warm up TTS engine with a silent short speak
+        await new Promise<void>(resolve => {
+            Tts.speak(' ');
+            setTimeout(resolve, 1500);  // wait 1.5s for engine to initialize
+        });
+
         history.current = [{
             role: 'user',
             parts: [{ text: buildPrompt(role, skills) + '\n\nStart the interview now.' }],
@@ -211,7 +282,7 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
             history.current.push({ role: 'model', parts: [{ text: reply }] });
             addMsg('ai', reply);
             setQNum(1);
-            speak(reply);
+            setTimeout(() => speak(reply), 500);  // small extra delay after warmup
         } catch (e: any) {
             Alert.alert('Error', e.message);
             setScreen('ready');
@@ -264,6 +335,9 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
     if (screen === 'select') return (
         <SafeAreaView style={s.root}>
             <View style={s.ph}>
+                <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
+                    <Text style={s.backTxt}>← Back</Text>
+                </TouchableOpacity>
                 <Text style={s.h1}>Prepare Your Interview</Text>
                 <Text style={s.sub}>Tell the AI your role and skills</Text>
             </View>
@@ -347,6 +421,9 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
     if (screen === 'ready') return (
         <SafeAreaView style={s.root}>
             <View style={s.center}>
+                <TouchableOpacity style={s.backBtn} onPress={() => setScreen('select')}>
+                    <Text style={s.backTxt}>← Back</Text>
+                </TouchableOpacity>
                 <Text style={{ fontSize: 62, marginBottom: 14 }}>🎯</Text>
                 <Text style={s.h1}>{customRole.trim()}</Text>
                 {customSkills.trim() ? <Text style={s.sub} numberOfLines={2}>{customSkills.trim()}</Text> : null}
@@ -371,7 +448,6 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
     // ── INTERVIEW ─────────────────────────────────────────
     if (screen === 'interview') return (
         <SafeAreaView style={s.root}>
-
             <View style={s.header}>
                 <View style={{ flex: 1 }}>
                     <Text style={s.hTitle} numberOfLines={1}>🎯  {customRole.trim()}</Text>
@@ -417,7 +493,7 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
             >
                 {messages.length === 0 && indicator === 'thinking' && (
                     <View style={s.startingBox}>
-                        <ActivityIndicator color="#FF4D00" size="small" />
+                        <ActivityIndicator color="#007AFF" size="small" />
                         <Text style={s.startingTxt}>  Starting interview...</Text>
                     </View>
                 )}
@@ -437,11 +513,9 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                         <Text style={s.thinkTxt}> AI is thinking...</Text>
                     </View>
                 )}
-
             </ScrollView>
 
             <View style={s.inputBar}>
-                {/* Live transcript shows above input when mic is on */}
                 {!!liveText && (
                     <View style={s.liveBox}>
                         <Animated.View style={[s.dotGreen, { transform: [{ scale: pulseAnim }], marginRight: 8 }]} />
@@ -450,8 +524,6 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                 )}
 
                 <View style={s.inputRow}>
-
-                    {/* Text input */}
                     <TextInput
                         style={s.answerInput}
                         placeholder={indicator === 'ai' ? 'AI is speaking...' : 'Type your answer...'}
@@ -464,7 +536,6 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                         returnKeyType="send"
                     />
 
-                    {/* Send text button — shows when user has typed something */}
                     {textInput.trim().length > 0 && (
                         <TouchableOpacity
                             style={s.sendBtn}
@@ -478,19 +549,13 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                         </TouchableOpacity>
                     )}
 
-                    {/* Mic button — shows when input is empty */}
                     {textInput.trim().length === 0 && (
                         <TouchableOpacity
                             style={[s.micBtn, indicator === 'mic' && s.micBtnActive, indicator === 'ai' && s.micBtnDisabled]}
                             onPress={() => {
-                                if (indicator === 'ai') return; // AI is speaking, ignore
-                                if (indicator === 'mic') {
-                                    // Stop mic
-                                    stopMic();
-                                } else {
-                                    // Start mic
-                                    startMic();
-                                }
+                                if (indicator === 'ai') return;
+                                if (indicator === 'mic') { stopMic(); }
+                                else { startMic(); }
                             }}
                             activeOpacity={0.8}
                         >
@@ -499,10 +564,8 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                             </Text>
                         </TouchableOpacity>
                     )}
-
                 </View>
 
-                {/* Status text below input */}
                 <Text style={s.inputStatus}>
                     {indicator === 'ai' && '🔊 AI is speaking...'}
                     {indicator === 'mic' && '🔴 Recording — tap ⏹ to stop'}
@@ -510,7 +573,6 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                     {indicator === 'idle' && '💬 Type or tap 🎙 to speak'}
                 </Text>
             </View>
-
         </SafeAreaView>
     );
 
@@ -528,12 +590,12 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
                     <Text style={s.statL}>Questions</Text>
                 </View>
                 <View style={s.statCard}>
-                    <Text style={[s.statN, { color: '#00E096' }]}>
+                    <Text style={[s.statN, { color: '#34c759' }]}>
                         {messages.filter(m => m.role === 'user').length}
                     </Text>
                     <Text style={s.statL}>Answered</Text>
                 </View>
-                <View style={[s.statCard, { borderColor: 'rgba(255,77,0,0.2)', flexBasis: '100%' }]}>
+                <View style={[s.statCard, { borderColor: 'rgba(0,122,255,0.2)', flexBasis: '100%' }]}>
                     <Text style={s.statN}>AI</Text>
                     <Text style={s.statL}>Personalized feedback after every answer</Text>
                 </View>
@@ -541,7 +603,7 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
             <TouchableOpacity style={s.btn} onPress={resetAll}>
                 <Text style={s.btnTxt}>Try Another Role</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.ghost} onPress={() => navigation?.goBack()}>
+            <TouchableOpacity style={s.ghost} onPress={() => navigation.goBack()}>
                 <Text style={s.ghostTxt}>← Back to Home</Text>
             </TouchableOpacity>
         </SafeAreaView>
@@ -549,107 +611,106 @@ export default function InterviewScreen({ navigation }: { navigation: any }) {
 }
 
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#080910' },
+    root: { flex: 1, backgroundColor: '#0b0d12' },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-    ph: { paddingTop: 52, paddingHorizontal: 20, paddingBottom: 4 },
-    h1: { color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5 },
-    sub: { color: '#8A8FA8', fontSize: 13, textAlign: 'center', marginTop: 6, lineHeight: 20 },
+    ph: { paddingTop: height * 0.06, paddingHorizontal: width * 0.05, paddingBottom: 4 },
+    h1: { color: '#fff', fontSize: width * 0.06, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5 },
+    sub: { color: '#8A8FA8', fontSize: width * 0.033, textAlign: 'center', marginTop: 6, lineHeight: 20 },
 
-    fieldLabel: { color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 4 },
-    fieldHint: { color: '#5A5F7A', fontSize: 12, marginBottom: 10, lineHeight: 16 },
-    fieldBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#13151f', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 14, paddingVertical: 10 },
+    backBtn: { alignSelf: 'flex-start', marginBottom: height * 0.015, padding: 4 },
+    backTxt: { color: '#007AFF', fontSize: width * 0.038, fontWeight: '500' },
+
+    fieldLabel: { color: '#fff', fontSize: width * 0.035, fontWeight: '700', marginBottom: 4 },
+    fieldHint: { color: '#5A5F7A', fontSize: width * 0.03, marginBottom: 10, lineHeight: 16 },
+    fieldBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingHorizontal: width * 0.04, paddingVertical: height * 0.014 },
     fieldBoxMulti: { alignItems: 'flex-start', paddingTop: 12 },
-    fieldBoxActive: { borderColor: '#FF4D00', backgroundColor: 'rgba(255,77,0,0.05)' },
-    fieldInput: { flex: 1, color: '#fff', fontSize: 14 },
+    fieldBoxActive: { borderColor: '#007AFF', backgroundColor: 'rgba(0,122,255,0.05)' },
+    fieldInput: { flex: 1, color: '#fff', fontSize: width * 0.035 },
     clearBtn: { color: '#5A5F7A', fontSize: 18, lineHeight: 22, paddingLeft: 8 },
 
-    previewCard: { backgroundColor: '#13151f', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: 'rgba(255,77,0,0.2)', gap: 10 },
-    previewTitle: { color: '#FF4D00', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 },
+    previewCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: 'rgba(0,122,255,0.2)', gap: 10 },
+    previewTitle: { color: '#007AFF', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 },
     previewRow: { flexDirection: 'row', gap: 8 },
     previewKey: { color: '#5A5F7A', fontSize: 13, fontWeight: '600', width: 44 },
     previewVal: { color: '#fff', fontSize: 13, flex: 1, lineHeight: 20 },
     previewNote: { color: '#3D4060', fontSize: 12, fontStyle: 'italic' },
 
-    btn: { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#FF4D00', borderRadius: 50, paddingVertical: 15, alignItems: 'center', width: '90%', shadowColor: '#FF4D00', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 10 },
-    btnOff: { backgroundColor: '#1e2030', shadowOpacity: 0, elevation: 0 },
-    btnTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
+    btn: { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#007AFF', borderRadius: 50, paddingVertical: height * 0.018, alignItems: 'center', width: '90%', shadowColor: '#007AFF', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 10 },
+    btnOff: { backgroundColor: 'rgba(255,255,255,0.06)', shadowOpacity: 0, elevation: 0 },
+    btnTxt: { color: '#fff', fontSize: width * 0.038, fontWeight: '800' },
     ghost: { padding: 14, alignItems: 'center' },
-    ghostTxt: { color: '#5A5F7A', fontSize: 13 },
+    ghostTxt: { color: '#5A5F7A', fontSize: width * 0.033 },
 
-    infoBox: { backgroundColor: '#13151f', borderRadius: 16, padding: 18, width: '100%', marginVertical: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-    infoTxt: { color: '#8A8FA8', fontSize: 13, lineHeight: 30 },
+    infoBox: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 18, width: '100%', marginVertical: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+    infoTxt: { color: '#8A8FA8', fontSize: width * 0.033, lineHeight: 30 },
 
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 48, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
-    hTitle: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    hSub: { color: '#8A8FA8', fontSize: 11, marginTop: 2 },
-    endBtn: { backgroundColor: 'rgba(255,59,92,0.12)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: 'rgba(255,59,92,0.3)' },
-    endTxt: { color: '#FF3B5C', fontSize: 12, fontWeight: '700' },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: width * 0.04, paddingTop: height * 0.055, paddingBottom: height * 0.015, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.07)' },
+    hTitle: { color: '#fff', fontSize: width * 0.038, fontWeight: '700' },
+    hSub: { color: '#8A8FA8', fontSize: width * 0.028, marginTop: 2 },
+    endBtn: { backgroundColor: 'rgba(255,69,58,0.12)', borderRadius: 20, paddingHorizontal: width * 0.035, paddingVertical: height * 0.008, borderWidth: 1, borderColor: 'rgba(255,69,58,0.3)' },
+    endTxt: { color: '#ff453a', fontSize: width * 0.03, fontWeight: '700' },
 
-    progWrap: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 2 },
+    progWrap: { paddingHorizontal: width * 0.04, paddingTop: height * 0.012, paddingBottom: 2 },
     progRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
-    progLabel: { color: '#8A8FA8', fontSize: 11 },
-    progPct: { color: '#FF4D00', fontSize: 11, fontWeight: '600' },
-    progBar: { height: 3, backgroundColor: '#1a1c2a', borderRadius: 2 },
-    progFill: { height: 3, backgroundColor: '#FF4D00', borderRadius: 2 },
+    progLabel: { color: '#8A8FA8', fontSize: width * 0.028 },
+    progPct: { color: '#007AFF', fontSize: width * 0.028, fontWeight: '600' },
+    progBar: { height: 3, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 2 },
+    progFill: { height: 3, backgroundColor: '#007AFF', borderRadius: 2 },
 
     chipsScroll: { flexGrow: 0, paddingTop: 8 },
-    chipsRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingBottom: 8 },
-    chip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: '#13151f', borderWidth: 1, borderColor: '#1e2030' },
-    chipDone: { backgroundColor: 'rgba(255,77,0,0.08)', borderColor: 'rgba(255,77,0,0.3)' },
-    chipNow: { backgroundColor: '#FF4D00', borderColor: '#FF4D00' },
-    chipTxt: { fontSize: 11, fontWeight: '600', color: '#3D4060' },
-    chipTxtDone: { color: '#FF4D00' },
+    chipsRow: { flexDirection: 'row', gap: 6, paddingHorizontal: width * 0.04, paddingBottom: 8 },
+    chip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+    chipDone: { backgroundColor: 'rgba(0,122,255,0.08)', borderColor: 'rgba(0,122,255,0.3)' },
+    chipNow: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
+    chipTxt: { fontSize: width * 0.028, fontWeight: '600', color: 'rgba(255,255,255,0.3)' },
+    chipTxtDone: { color: '#007AFF' },
     chipTxtNow: { color: '#fff' },
 
     bubble: { marginBottom: 12, maxWidth: '88%', borderRadius: 18, padding: 13 },
-    bubAI: { backgroundColor: '#13151f', alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(255,77,0,0.18)', borderBottomLeftRadius: 4 },
-    bubU: { backgroundColor: '#1a1c2a', alignSelf: 'flex-end', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderBottomRightRadius: 4 },
-    bubRole: { color: '#FF4D00', fontSize: 10, fontWeight: '700', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.8 },
-    bubTxtAI: { color: '#f0f0f8', fontSize: 14, lineHeight: 22 },
-    bubTxtU: { color: '#c0c4e0', fontSize: 14, lineHeight: 22 },
+    bubAI: { backgroundColor: 'rgba(255,255,255,0.04)', alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(0,122,255,0.18)', borderBottomLeftRadius: 4 },
+    bubU: { backgroundColor: 'rgba(255,255,255,0.06)', alignSelf: 'flex-end', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderBottomRightRadius: 4 },
+    bubRole: { color: '#007AFF', fontSize: 10, fontWeight: '700', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.8 },
+    bubTxtAI: { color: '#f0f0f8', fontSize: width * 0.035, lineHeight: 22 },
+    bubTxtU: { color: '#c0c4e0', fontSize: width * 0.035, lineHeight: 22 },
 
     startingBox: { flexDirection: 'row', alignItems: 'center', padding: 14, alignSelf: 'flex-start' },
-    startingTxt: { color: '#FF4D00', fontSize: 13 },
+    startingTxt: { color: '#007AFF', fontSize: width * 0.033 },
 
     thinkRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 4, marginBottom: 10 },
-    thinkDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#FF4D00' },
-    thinkTxt: { color: '#5A5F7A', fontSize: 12, marginLeft: 4 },
+    thinkDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#007AFF' },
+    thinkTxt: { color: '#5A5F7A', fontSize: width * 0.03, marginLeft: 4 },
 
+    liveBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(52,199,89,0.08)', borderWidth: 1, borderColor: 'rgba(52,199,89,0.2)', borderRadius: 14, padding: 12, marginBottom: 8 },
+    liveTxt: { color: '#34c759', fontSize: width * 0.033, fontStyle: 'italic', flex: 1 },
+
+    dotGreen: { width: 13, height: 13, borderRadius: 7, backgroundColor: '#34c759' },
+
+    statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, width: '100%', marginVertical: 22 },
+    statCard: { flex: 1, minWidth: '44%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+    statN: { fontSize: width * 0.065, fontWeight: '800', color: '#007AFF' },
+    statL: { fontSize: width * 0.028, color: '#8A8FA8', marginTop: 4, textAlign: 'center' },
+
+    inputBar: { backgroundColor: '#0d0f1a', borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.07)', paddingHorizontal: width * 0.03, paddingTop: height * 0.01, paddingBottom: height * 0.012 },
+    inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+    answerInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: width * 0.035, paddingHorizontal: width * 0.04, paddingVertical: height * 0.012, maxHeight: 100, lineHeight: 20 },
+    inputStatus: { color: '#3D4060', fontSize: width * 0.028, textAlign: 'center', marginTop: 6, height: 16 },
+
+    sendBtn: { width: width * 0.11, height: width * 0.11, borderRadius: width * 0.055, backgroundColor: '#007AFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#007AFF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
+    sendIcon: { color: '#fff', fontSize: width * 0.04 },
+
+    micBtn: { width: width * 0.11, height: width * 0.11, borderRadius: width * 0.055, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+    micBtnActive: { backgroundColor: 'rgba(255,69,58,0.15)', borderColor: '#ff453a' },
+    micBtnDisabled: { opacity: 0.4 },
+    micIcon: { fontSize: width * 0.045 },
+
+    // unused but kept for safety
     tipCard: { flexDirection: 'row', backgroundColor: '#0d1a14', borderWidth: 1, borderColor: 'rgba(0,224,150,0.2)', borderRadius: 14, padding: 12, marginBottom: 8, gap: 10, alignItems: 'center' },
     tipIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(0,224,150,0.1)', alignItems: 'center', justifyContent: 'center' },
     tipLabel: { fontSize: 10, fontWeight: '700', color: '#00E096', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
     tipText: { fontSize: 12, color: '#8A8FA8', lineHeight: 16 },
-
-    liveBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0d1a14', borderWidth: 1, borderColor: 'rgba(0,224,150,0.2)', borderRadius: 14, padding: 12, marginBottom: 8 },
-    liveTxt: { color: '#00E096', fontSize: 13, fontStyle: 'italic', flex: 1 },
-
     vbar: { backgroundColor: '#0d0f1a', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingVertical: 18, paddingHorizontal: 18, minHeight: 66, justifyContent: 'center' },
     vrow: { flexDirection: 'row', alignItems: 'center' },
     vbarTxt: { color: '#8A8FA8', fontSize: 13, flex: 1 },
-    dotOrange: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#FF4D00' },
-    dotGreen: { width: 13, height: 13, borderRadius: 7, backgroundColor: '#00E096' },
+    dotOrange: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#007AFF' },
     dotGray: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#3D4060' },
-
-    statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, width: '100%', marginVertical: 22 },
-    statCard: { flex: 1, minWidth: '44%', backgroundColor: '#13151f', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-    statN: { fontSize: 26, fontWeight: '800', color: '#FF4D00' },
-    statL: { fontSize: 11, color: '#8A8FA8', marginTop: 4, textAlign: 'center' },
-
-
-
-    // WhatsApp-style input bar
-inputBar:       { backgroundColor: '#0d0f1a', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 10 },
-inputRow:       { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-answerInput:    { flex: 1, backgroundColor: '#13151f', borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 14, paddingHorizontal: 16, paddingVertical: 10, maxHeight: 100, lineHeight: 20 },
-inputStatus:    { color: '#3D4060', fontSize: 11, textAlign: 'center', marginTop: 6, height: 16 },
-
-// Send button (appears when typing)
-sendBtn:        { width: 42, height: 42, borderRadius: 21, backgroundColor: '#FF4D00', alignItems: 'center', justifyContent: 'center', shadowColor: '#FF4D00', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 },
-sendIcon:       { color: '#fff', fontSize: 16 },
-
-// Mic button
-micBtn:         { width: 42, height: 42, borderRadius: 21, backgroundColor: '#13151f', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-micBtnActive:   { backgroundColor: 'rgba(255,59,92,0.15)', borderColor: '#FF3B5C' },
-micBtnDisabled: { opacity: 0.4 },
-micIcon:        { fontSize: 18 },
 });
