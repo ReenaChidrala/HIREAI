@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Alert, Dimensions, ImageBackground, Platform, Text, TextInput, TouchableOpacity, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { StyleSheet } from "react-native"
@@ -9,6 +9,9 @@ import { ScrollView } from "react-native";
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 const { width, height } = Dimensions.get('window');
 
+
+
+
 export const LoginScreen = () => {
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
@@ -16,22 +19,29 @@ export const LoginScreen = () => {
     const [signup, Setsignup] = useState(false)
 
     const navigation = useNavigation<any>();
-    GoogleSignin.configure({
-        webClientId: '789836582938-mvscpvkosepl848utr57d257r0gqnkte.apps.googleusercontent.com', // from Google Cloud Console
-    });
 
+    useEffect(() => {
+        GoogleSignin.configure({
+            webClientId: '789836582938-mvscpvkosepl848utr57d257r0gqnkte.apps.googleusercontent.com', // from Google Cloud Console
+        });
+    }, []);
     const handleGoogle = async () => {
-        console.log('google direct login is ongoing')
-            await GoogleSignin.hasPlayServices();
+        try {
+            await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+            await GoogleSignin.signOut(); // ← add this, fixes "activity is null" error
             const { data } = await GoogleSignin.signIn();
             if (!data?.idToken) {
                 Alert.alert("Error", "Google sign in failed");
-                return; 3
+                return;
             }
-            const credential = auth.GoogleAuthProvider.credential(data?.idToken);
+            const credential = auth.GoogleAuthProvider.credential(data.idToken);
             await auth().signInWithCredential(credential);
-            navigation.navigate('Dashboard');
+            Alert.alert("Success", "Login successful!");
+            navigation.navigate('MainApp');
+        } catch (error: any) {
+            Alert.alert("Error", error.message);
         }
+    };
 
     const handleAuth = async (): Promise<void> => {
 
@@ -70,7 +80,7 @@ export const LoginScreen = () => {
 
                 Alert.alert("Success", "Login successful!");
                 // navigation.navigate("Home"); // navigating to dashboard after successful login
-                navigation.navigate("Dashboard");
+                navigation.navigate("MainApp");
             }
         } catch (error: any) {
             switch (error.code) {
@@ -170,11 +180,11 @@ export const LoginScreen = () => {
                                 </TouchableOpacity>
                             )}
 
-                            
+
                             <TouchableOpacity
                                 style={styles.loginButton}
                                 onPress={handleAuth}
-                                activeOpacity={0.35}
+                                activeOpacity={0.8}
                             >
                                 <Text
                                     style={styles.buttonBtnTxt}
@@ -245,17 +255,17 @@ const styles = StyleSheet.create({
     welcomeText: {
         fontSize: width * 0.14,
         fontWeight: '800',
-        marginBottom: height * 0.05,
+        marginBottom: height * 0.02,
         color: "#fff",
         lineHeight: width * 0.15,
         letterSpacing: 1.5,
 
     },
     subText: {
-        color: 'rgba(255,255,255,0.35)',
+        color: 'rgba(255, 255, 255, 0.53)',
         fontSize: width * 0.033,
-        marginTop: -height * 0.03,
-        marginBottom: height * 0.04,
+        marginTop: 0,
+        marginBottom: height * 0.02,
     },
     glassContainer: {//chatbot
         width: '100%',
@@ -310,24 +320,24 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.25)',
         fontSize: width * 0.035,
     },
-    socialRow:{
-        flexDirection:'row',
-        gap:10,
-        marginBottom: height * 0.018, 
+    socialRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: height * 0.018,
     },
-    socialBtn:{
+    socialBtn: {
         flex: 1,
         backgroundColor: 'rgba(255,255,255,0.06)',
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.12)',
-        borderRadius:12,
-        paddingVertical:height* 0.014,
-        alignItems:'center'
+        borderRadius: 12,
+        paddingVertical: height * 0.014,
+        alignItems: 'center'
     },
-    socialTxt:{
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: width * 0.033,
-    fontWeight: '500',
+    socialTxt: {
+        color: 'rgba(255,255,255,0.55)',
+        fontSize: width * 0.033,
+        fontWeight: '500',
     },
     buttonBtnTxt: {
         color: '#fff',

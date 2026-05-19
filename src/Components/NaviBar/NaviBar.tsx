@@ -1,15 +1,18 @@
 import React from 'react'
-import { View, Text, StyleSheet, Dimensions } from 'react-native'
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native'
 import { MenuIcon } from '../../assets/SVGIMG/svgIcons'
+import { DrawerActions, useNavigation } from '@react-navigation/native';
 
 const {width ,height} =Dimensions.get('window')
 
 export default function NaviBar() {
+  const navigation = useNavigation<any>();
+  
   return (
     <View style={styles.container}>
-      <View style={styles.menuIcon}>
-        <MenuIcon />
-      </View>
+        <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())}>
+                <MenuIcon />
+        </TouchableOpacity>
       <Text style={styles.menuTxt}>Dashboard</Text>
 
     </View>
@@ -23,11 +26,6 @@ const styles = StyleSheet.create({
     marginTop: height *  0.020,//20
     alignItems: 'center',
     paddingVertical: height * 0.006,//5
-    
-  },
-  menuIcon: {
-    width: width * 0.10,
-    // height: width * 0.06,
     
   },
   menuTxt: {
